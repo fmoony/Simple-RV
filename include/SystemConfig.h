@@ -2,20 +2,20 @@
 #include <cstdint>
 
 struct SystemConfig {
-    uint32_t ram_size;      // ÎïÀíÄÚ´æ×Ü´óĞ¡ (×Ö½Ú)
-    uint32_t pc_init;       // ¿ª»ú³õÊ¼ PC (Reset Vector)
-    uint32_t sp_init;       // ¿ª»ú³õÊ¼Õ»¶¥Ö¸Õë (Stack Pointer)
-    uint32_t mtvec_init;    // Ä¬ÈÏÒì³£ÏòÁ¿»ùÖ· (Trap Vector)
-    uint32_t uart_base;     // ´®¿Ú MMIO »ùÖ·
+    uint32_t ram_size;      // ç‰©ç†å†…å­˜æ€»å¤§å° (å­—èŠ‚)
+    uint32_t pc_init;       // å¼€æœºåˆå§‹ PC (Reset Vector)
+    uint32_t sp_init;       // å¼€æœºåˆå§‹æ ˆé¡¶æŒ‡é’ˆ (Stack Pointer)
+    uint32_t mtvec_init;    // é»˜è®¤å¼‚å¸¸å‘é‡åŸºå€ (Trap Vector)
+    uint32_t uart_base;     // ä¸²å£ MMIO åŸºå€
 
-    // ¹¤³§·½·¨£ºÉú³ÉÄ¬ÈÏµÄ 64KB ¿ª·¢°åÅäÖÃ
+    // å·¥å‚æ–¹æ³•ï¼šç”Ÿæˆé»˜è®¤çš„ 64KB å¼€å‘æ¿é…ç½®
     static SystemConfig Default64KB() {
         SystemConfig cfg;
         cfg.ram_size = 64 * 1024;        // 64KB
-        cfg.pc_init = 0x00000000;       // Èë¿ÚÖ¸ÁîÔÚ 0x0000
-        cfg.sp_init = 64 * 1024 - 16;   // Õ»¶¥ÉèÔÚÎïÀíÄÚ´æ×î¸ß´¦£¬Ô¤Áô 16 ×Ö½Ú°²È«Çø
-        cfg.mtvec_init = 0x00003000;       // Ä¬ÈÏÖĞ¶ÏÈë¿Ú£¬¿É±» CSR Ö¸Áî¸²Ğ´
-        cfg.uart_base = 0x10000000;       // ´®¿ÚÓ²¼şµØÖ·
+        cfg.pc_init = 0x00000000;       // å…¥å£æŒ‡ä»¤åœ¨ 0x0000
+        cfg.sp_init = 64 * 1024 - 16;   // æ ˆé¡¶è®¾åœ¨ç‰©ç†å†…å­˜æœ€é«˜å¤„ï¼Œé¢„ç•™ 16 å­—èŠ‚å®‰å…¨åŒº
+        cfg.mtvec_init = 0x00003000;       // é»˜è®¤ä¸­æ–­å…¥å£ï¼Œå¯è¢« CSR æŒ‡ä»¤è¦†å†™
+        cfg.uart_base = 0x10000000;       // ä¸²å£ç¡¬ä»¶åœ°å€
         return cfg;
     }
 };

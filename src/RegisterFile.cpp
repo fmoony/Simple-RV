@@ -19,20 +19,20 @@ Word RegisterFile::read_csr(HalfWord csr) const
     switch (csr)
     {
     // Machine Information Registers (read-only)
-    case CSR_MVENDORID: return 0;           // Non-commercial implementation
-    case CSR_MARCHID:   return 0;           // Not implemented
-    case CSR_MIMPID:    return 1;           // Version 1
-    case CSR_MHARTID:   return 0;           // Single hart
+    case CSR_MVENDORID: return 0;           // 非商业实现
+    case CSR_MARCHID:   return 0;           // 未实现
+    case CSR_MIMPID:    return 1;           // 版本 1
+    case CSR_MHARTID:   return 0;           // 单核
 
-    // Machine Trap Setup
+    // 机器模式陷阱设置
     case CSR_MSTATUS:   return mstatus;
     case CSR_MISA:      return MISA_RV32I;  // RV32I
-    case CSR_MEDELEG:   return 0;           // No delegation
+    case CSR_MEDELEG:   return 0;           // 不支持委托
     case CSR_MIDELEG:   return 0;
     case CSR_MIE:       return mie;
     case CSR_MTVEC:     return mtvec;
 
-    // Machine Trap Handling
+    // 机器模式陷阱处理
     case CSR_MSCRATCH:  return mscratch;
     case CSR_MEPC:      return mepc;
     case CSR_MCAUSE:    return mcause;
@@ -50,25 +50,25 @@ void RegisterFile::write_csr(HalfWord csr, Word data)
 {
     switch (csr)
     {
-    // Read-only info registers: silently ignore writes
+    // 只读信息寄存器：静默忽略写入
 
-    // Machine Trap Setup
+    // 机器模式陷阱设置
     case CSR_MSTATUS: mstatus = data; break;
-    case CSR_MISA:    break;                             // Read-only
-    case CSR_MEDELEG: break;                             // Not supported
+    case CSR_MISA:    break;                             // 只读
+    case CSR_MEDELEG: break;                             // 不支持
     case CSR_MIDELEG: break;
     case CSR_MIE:     mie = data; break;
     case CSR_MTVEC:   mtvec = data; break;
 
-    // Machine Trap Handling
+    // 机器模式陷阱处理
     case CSR_MSCRATCH: mscratch = data; break;
     case CSR_MEPC:     mepc = data; break;
     case CSR_MCAUSE:   mcause = data; break;
     case CSR_MTVAL:    mtval = data; break;
 
     case CSR_MIP: {
-        // MTIP (bit 7) and MEIP (bit 11) are read-only, hardware-driven
-        // Only MSIP (bit 3) is writable by software
+        // MTIP (bit 7) 和 MEIP (bit 11) 只读，由硬件驱动
+        // 仅 MSIP (bit 3) 可由软件写入
         Word writable_mask = MIP_MSIP;
         mip = (mip & ~writable_mask) | (data & writable_mask);
         break;

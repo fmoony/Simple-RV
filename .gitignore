@@ -361,3 +361,20 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# ============================================
+# Simple-RV-Plus 项目专用忽略规则
+# ============================================
+
+# CMake 构建输出
+build/
+
+# 测试二进制文件 (由汇编/编译生成)
+*.bin
+*.elf
+
+# Claude Code 配置
+.claude/
+
+# 临时/垃圾文件
+include/新建 Text Document - 副本 (6).txt

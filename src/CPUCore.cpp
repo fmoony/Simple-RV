@@ -13,10 +13,10 @@ void CPUCore::init(const std::string& program_file)
     instr_count = 0;
     running = true;
 
-    // Initialize stack pointer (x2) near top of 64KB RAM
+    // 初始化栈指针 (x2)，指向 64KB 内存顶部附近
     reg_file.write_rd(2, config.sp_init, true);
 
-    // Initialize trap vector (mtvec) for exception/interrupt handling
+    // 初始化陷阱向量基址 (mtvec)，用于异常/中断处理
     reg_file.write_csr(CSR_MTVEC, config.mtvec_init);
 }
 
@@ -33,17 +33,17 @@ void CPUCore::run()
 
 void CPUCore::tick()
 {
-    // 0. Update timer and check for pending interrupts
+    // 0. 更新定时器并检查待处理中断
     memory.increment_timer();
 
-    // Update MTIP hardware bit (read-only to software CSR writes)
+    // 更新 MTIP 硬件位（软件写入 CSR 时只读）
     reg_file.hw_set_mtip(memory.timer_interrupt_pending());
 
     checkAndHandleInterrupts();
 
     if (!running) return;
 
-    // Pipeline stages execute in reverse order (hardware-like behavior)
+    // 流水线阶段按反向顺序执行（模拟硬件行为）
     writeBack();
     memoryAccess();
     execute();
@@ -54,7 +54,7 @@ void CPUCore::tick()
 }
 
 // =========================================================================
-// 1. WriteBack stage (WB)
+// 1. 写回阶段 (WB)
 // =========================================================================
 void CPUCore::writeBack()
 {
@@ -63,14 +63,14 @@ void CPUCore::writeBack()
         auto& slot = pipe_regs.mem_wb.slots[i];
         if (slot.valid)
         {
-            // EBREAK (0x00100073) halts the simulator
+            // EBREAK (0x00100073)：停止模拟器
             if (slot.instr == 0x00100073)
             {
                 running = false;
                 continue;
             }
 
-            // Zero instruction (uninitialized memory) causes fatal error
+            // 全零指令（未初始化内存）：触发致命错误
             if (slot.instr == 0x00000000)
             {
                 std::cout << "\n[Fatal Error] Executed illegal instruction 0x00000000! "
@@ -90,7 +90,7 @@ void CPUCore::writeBack()
 }
 
 // =========================================================================
-// 2. Memory Access stage (MEM)
+// 2. 访存阶段 (MEM)
 // =========================================================================
 void CPUCore::memoryAccess()
 {
@@ -105,13 +105,13 @@ void CPUCore::memoryAccess()
         Word funct3 = (pipe_regs.ex_mem.slots[i].instr >> 12) & 0x7;
         Addr addr = pipe_regs.ex_mem.mem_addr[i];
 
-        // --- Load operations ---
+        // --- 加载操作 ---
         if (pipe_regs.ex_mem.memRead[i])
         {
-            // Determine access width
+            // 确定访问宽度
             Byte n = (funct3 == 0 || funct3 == 4) ? 1 : ((funct3 == 1 || funct3 == 5) ? 2 : 4);
 
-            // Alignment check
+            // 对齐检查
             if ((n == 4 && (addr & 0x3)) || (n == 2 && (addr & 0x1))) {
                 std::cout << "[Trap] Load address misaligned: 0x" << std::hex << addr << std::dec << std::endl;
                 Addr fault_pc = pipe_regs.ex_mem.pc + (i * 4);
@@ -123,7 +123,7 @@ void CPUCore::memoryAccess()
                 return;
             }
 
-            // MMU: translate virtual to physical address
+            // MMU：虚拟地址转物理地址
             Word satp_val = reg_file.read_csr(CSR_SATP);
             TranslationResult trans = memory.translate(addr, false, false, satp_val);
             if (trans.fault) {
@@ -136,7 +136,7 @@ void CPUCore::memoryAccess()
 
             Word raw_data = memory.read(phys_addr, n);
 
-            // Sign-extension for LB, LH
+            // 符号扩展：LB、LH
             if (funct3 == 0)      // LB: 8-bit -> 32-bit signed
                 raw_data = static_cast<Word>(static_cast<int32_t>(static_cast<int8_t>(raw_data & 0xFF)));
             else if (funct3 == 1) // LH: 16-bit -> 32-bit signed
@@ -145,12 +145,12 @@ void CPUCore::memoryAccess()
             pipe_regs.mem_wb.slots[i].result = raw_data;
         }
 
-        // --- Store operations ---
+        // --- 存储操作 ---
         if (pipe_regs.ex_mem.memWrite[i])
         {
             Byte n = (funct3 == 0) ? 1 : ((funct3 == 1) ? 2 : 4);
 
-            // Alignment check
+            // 对齐检查
             if ((n == 4 && (addr & 0x3)) || (n == 2 && (addr & 0x1))) {
                 std::cout << "[Trap] Store address misaligned: 0x" << std::hex << addr << std::dec << std::endl;
                 Addr fault_pc = pipe_regs.ex_mem.pc + (i * 4);
@@ -162,7 +162,7 @@ void CPUCore::memoryAccess()
                 return;
             }
 
-            // MMU: translate virtual to physical address
+            // MMU：虚拟地址转物理地址
             Word satp_val = reg_file.read_csr(CSR_SATP);
             TranslationResult trans = memory.translate(addr, true, false, satp_val);
             if (trans.fault) {
@@ -179,13 +179,13 @@ void CPUCore::memoryAccess()
 }
 
 // =========================================================================
-// 3. Execute stage (EX)
+// 3. 执行阶段 (EX)
 // =========================================================================
 void CPUCore::execute()
 {
     exec_engine.execute(pipe_regs.id_ex, pipe_regs.ex_mem, pipe_regs.mem_wb, reg_file);
 
-    // Commit CSR writes (before branch/jump handling)
+    // 提交 CSR 写入（在分支/跳转处理之前）
     for (int i = 0; i < 2; ++i) {
         if (pipe_regs.ex_mem.slots[i].valid && pipe_regs.ex_mem.slots[i].d.is_csr) {
             reg_file.write_csr(pipe_regs.ex_mem.slots[i].d.csr_addr,
@@ -193,25 +193,25 @@ void CPUCore::execute()
         }
     }
 
-    // --- Control Hazard: Branch/Jump ---
+    // --- 控制冒险：分支/跳转 ---
     if (pipe_regs.ex_mem.slots[0].valid && pipe_regs.ex_mem.slots[0].d.is_branch)
     {
         Addr target_pc = pipe_regs.ex_mem.slots[0].jump_target;
         pc = target_pc;
 
-        // Flush front-end stages
+        // 冲刷前端阶段
         pipe_regs.if_id = IF_ID_Buffer();
         pipe_regs.id_ex = ID_EX_Buffer();
 
-        // Invalidate slot 1 (the "bubble" after a taken branch)
+        // 无效化槽位 1（分支命中后的气泡）
         pipe_regs.ex_mem.slots[1] = PipelineSlot();
         pipe_regs.ex_mem.slots[1].valid = false;
         pipe_regs.ex_mem.memRead[1] = false;
         pipe_regs.ex_mem.memWrite[1] = false;
     }
 
-    // --- Exception handling: check both slots (slot 0 first, earlier instruction) ---
-    // Slot 0 check
+    // --- 异常处理：检查两个槽位（先查槽位 0，更早的指令优先） ---
+    // 槽位 0 检查
     if (pipe_regs.ex_mem.slots[0].valid) {
         auto& d = pipe_regs.ex_mem.slots[0].d;
         Addr current_instruction_pc = pipe_regs.ex_mem.pc;
@@ -229,7 +229,7 @@ void CPUCore::execute()
         }
         else if (d.is_mret) {
             std::cout << "[Trap] MRET detected. Returning..." << std::endl;
-            // Restore MIE from MPIE, set MPIE to 1 (RISC-V spec)
+            // 从 MPIE 恢复 MIE，设置 MPIE 为 1（RISC-V 规范）
             Word mstatus_val = reg_file.read_csr(CSR_MSTATUS);
             Word mstatus_new = mstatus_val & ~MSTATUS_MIE;
             if (mstatus_val & MSTATUS_MPIE) {
@@ -244,9 +244,9 @@ void CPUCore::execute()
             pipe_regs.ex_mem.slots[1].valid = false;
         }
         else if (pipe_regs.ex_mem.slots[1].valid) {
-            // Slot 0 OK, check slot 1
+            // 槽位 0 正常，检查槽位 1
             auto& d1 = pipe_regs.ex_mem.slots[1].d;
-            Addr slot1_pc = pipe_regs.ex_mem.pc + 4;  // slot 1 PC = slot 0 PC + 4
+            Addr slot1_pc = pipe_regs.ex_mem.pc + 4;  // 槽位 1 的 PC = 槽位 0 的 PC + 4
 
             if (d1.is_ecall) {
                 std::cout << "[Trap] ECALL detected at 0x" << std::hex << slot1_pc << std::dec << std::endl;
@@ -271,7 +271,7 @@ void CPUCore::execute()
 }
 
 // =========================================================================
-// 4. Decode and Issue stage (ID)
+// 4. 译码发射阶段 (ID)
 // =========================================================================
 void CPUCore::decodeAndIssue()
 {
@@ -279,11 +279,11 @@ void CPUCore::decodeAndIssue()
 }
 
 // =========================================================================
-// 5. Instruction Fetch stage (IF)
+// 5. 取指阶段 (IF)
 // =========================================================================
 void CPUCore::fetch()
 {
-    // MMU translation helper for instruction fetch
+    // MMU 地址转换辅助函数（用于取指）
     auto fetch_instr = [&](Addr vaddr) -> Word {
         Word satp_val = reg_file.read_csr(CSR_SATP);
         TranslationResult trans = memory.translate(vaddr, false, true, satp_val);
@@ -295,13 +295,13 @@ void CPUCore::fetch()
         return memory.read(trans.paddr, 4);
     };
 
-    // Case A: IF_ID slot 0 still valid (stall), don't fetch
+    // 情况A：IF_ID 槽位 0 仍有效（停顿），不取指
     if (pipe_regs.if_id.slots[0].valid)
     {
         return;
     }
 
-    // Case B: Bubble compress (slot 0 consumed, slot 1 still pending)
+    // 情况B：气泡压缩（槽位 0 已消耗，槽位 1 仍待处理）
     if (!pipe_regs.if_id.slots[0].valid && pipe_regs.if_id.slots[1].valid)
     {
         pipe_regs.if_id.slots[0] = pipe_regs.if_id.slots[1];
@@ -310,7 +310,7 @@ void CPUCore::fetch()
         if (pc < MEMORY_SIZE)
         {
             Word instr = fetch_instr(pc);
-            if (!running) return;  // Page fault halted execution
+            if (!running) return;  // 页错误导致执行中止
             pipe_regs.if_id.slots[1].instr = instr;
             pipe_regs.if_id.slots[1].valid = true;
             pc += 4;
@@ -318,12 +318,12 @@ void CPUCore::fetch()
         return;
     }
 
-    // Case C: Both slots empty, fetch 8 bytes (dual instruction)
+    // 情况C：两个槽位皆空，取指 8 字节（双指令）
     if (!pipe_regs.if_id.slots[0].valid && !pipe_regs.if_id.slots[1].valid)
     {
         if (pc + 8 <= MEMORY_SIZE)
         {
-            // Translate virtual PC to physical for double-instruction fetch
+            // 虚拟 PC 转物理地址，用于双指令取指
             Word satp_val = reg_file.read_csr(CSR_SATP);
             TranslationResult trans = memory.translate(pc, false, true, satp_val);
             if (trans.fault) {
@@ -333,9 +333,9 @@ void CPUCore::fetch()
             }
             Addr phys_pc = trans.paddr;
 
-            // Check that the 8-byte double fetch doesn't cross a physical page boundary
+            // 检查 8 字节双取指不跨越物理页边界
             if ((phys_pc >> 12) != ((phys_pc + 7) >> 12)) {
-                // Cross-page: fall back to single instruction fetch
+                // 跨页：退化为单指令取指
                 Word instr0 = memory.read(phys_pc, 4);
                 pipe_regs.if_id.slots[0].instr = instr0;
                 pipe_regs.if_id.slots[0].valid = true;
@@ -356,7 +356,7 @@ void CPUCore::fetch()
         }
         else if (pc + 4 <= MEMORY_SIZE)
         {
-            // Near end of memory: single instruction fetch
+            // 接近内存末端：单指令取指
             Word instr = fetch_instr(pc);
             if (!running) return;
             pipe_regs.if_id.slots[0].instr = instr;
@@ -368,7 +368,7 @@ void CPUCore::fetch()
 }
 
 // =========================================================================
-// Interrupt Handler
+// 中断处理
 // =========================================================================
 void CPUCore::checkAndHandleInterrupts()
 {
@@ -376,15 +376,15 @@ void CPUCore::checkAndHandleInterrupts()
     Word mie_val     = reg_file.read_csr(CSR_MIE);
     Word mip_val     = reg_file.read_csr(CSR_MIP);
 
-    // Global interrupt enable must be set
+    // 全局中断使能必须已设置
     if (!(mstatus_val & MSTATUS_MIE)) return;
 
-    // Timer interrupt: MIE.MTIE && MIP.MTIP
+    // 定时器中断：MIE.MTIE && MIP.MTIP
     if ((mie_val & MIE_MTIE) && (mip_val & MIP_MTIP)) {
         std::cout << "[Interrupt] Timer interrupt triggered at PC=0x"
                   << std::hex << pc << std::dec << std::endl;
 
-        // Save MIE to MPIE, clear MIE (prevent re-entrant interrupts)
+        // 将 MIE 保存到 MPIE，清除 MIE（防止重入中断）
         Word mstatus_new = mstatus_val & ~MSTATUS_MIE;          // Clear MIE
         mstatus_new = (mstatus_new & ~MSTATUS_MPIE) |
                       ((mstatus_val & MSTATUS_MIE) ? MSTATUS_MPIE : 0);  // MPIE = old MIE
@@ -397,7 +397,7 @@ void CPUCore::checkAndHandleInterrupts()
         return;
     }
 
-    // Software interrupt: MIE.MSIE && MIP.MSIP
+    // 软件中断：MIE.MSIE && MIP.MSIP
     if ((mie_val & MIE_MSIE) && (mip_val & MIP_MSIP)) {
         std::cout << "[Interrupt] Software interrupt triggered at PC=0x"
                   << std::hex << pc << std::dec << std::endl;
@@ -409,7 +409,7 @@ void CPUCore::checkAndHandleInterrupts()
         return;
     }
 
-    // External interrupt: MIE.MEIE && MIP.MEIP
+    // 外部中断：MIE.MEIE && MIP.MEIP
     if ((mie_val & MIE_MEIE) && (mip_val & MIP_MEIP)) {
         std::cout << "[Interrupt] External interrupt triggered at PC=0x"
                   << std::hex << pc << std::dec << std::endl;
@@ -435,7 +435,7 @@ void CPUCore::handleTrap(Addr fault_pc, Word mcause_val, Word mtval_val)
 }
 
 // =========================================================================
-// Debugging
+// 调试输出
 // =========================================================================
 void CPUCore::dumpState() const
 {

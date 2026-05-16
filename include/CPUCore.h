@@ -22,7 +22,7 @@ private:
     uint64_t instr_count = 0;
     bool     running = true;
 
-    // Interrupt & exception handling
+    // 中断与异常处理
     void checkAndHandleInterrupts();
     void handleTrap(Addr fault_pc, Word mcause_val, Word mtval_val);
 
@@ -34,7 +34,7 @@ public:
     void tick();
     void run();
 
-    // 5-stage pipeline
+    // 5 级流水线
     void writeBack();
     void memoryAccess();
     void execute();

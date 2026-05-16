@@ -25,7 +25,7 @@ void ExecutionEngine::execute(
             next_ex_mem.mem_data[i] = getOperand(id_ex.slots[i].d.rs2, id_ex.slots[i], id_ex, mem_wb, reg_file, ex_mem, i);
         }
 
-        // Intra-cycle forwarding: slot 0 result visible to slot 1 immediately
+        // 周期内转发：槽位 0 的结果立即可见于槽位 1
         if (i == 0) {
             ex_mem.slots[0] = next_ex_mem.slots[0];
         }
@@ -48,7 +48,7 @@ void ExecutionEngine::executeSlot(
 
     Addr current_pc = id_ex.pc + (slot_id * 4);
 
-    // CSR instructions: read old CSR value, compute new write value
+    // CSR 指令：读取旧的 CSR 值，计算新的写入值
     if (d.is_csr) {
         Word rs1_val = d.uses_rs1 ?
             getOperand(d.rs1, in_slot, id_ex, mem_wb, reg_file, ex_mem, slot_id) : 0;
@@ -87,7 +87,7 @@ Word ExecutionEngine::getOperand(
 {
     if (rs == 0) return 0;
 
-    // Priority 0: Intra-cycle forwarding (slot 0 -> slot 1 in same cycle)
+    // 优先级 0：周期内转发（同一周期槽位 0 → 槽位 1）
     if (slot_id == 1) {
         if (ex_mem.slots[0].valid &&
             ex_mem.slots[0].d.regWrite &&
@@ -97,17 +97,17 @@ Word ExecutionEngine::getOperand(
         }
     }
 
-    // Priority 1: EX_MEM stage (previous cycle results, excluding loads)
+    // 优先级 1：EX_MEM 阶段（上一周期结果，不含加载指令）
     for (int i = 1; i >= 0; --i) {
         if (ex_mem.slots[i].valid && ex_mem.slots[i].d.regWrite && ex_mem.slots[i].d.rd == rs && i != slot_id) {
             if (ex_mem.slots[i].d.is_memory) {
-                continue;  // Load data not ready yet; fall through to MEM_WB
+                continue;  // 加载数据尚未就绪，回退到 MEM_WB
             }
             return ex_mem.slots[i].result;
         }
     }
 
-    // Priority 2: MEM_WB stage (about to write back)
+    // 优先级 2：MEM_WB 阶段（即将写回）
     for (int i = 1; i >= 0; --i) {
         if (mem_wb.slots[i].valid &&
             mem_wb.slots[i].regWrite &&
@@ -117,7 +117,7 @@ Word ExecutionEngine::getOperand(
         }
     }
 
-    // Priority 3: Register file
+    // 优先级 3：寄存器文件
     return reg_file.read_rs1(rs);
 }
 
@@ -166,7 +166,7 @@ void ExecutionEngine::executeIType(const DecodedData& d, Word op1, PipelineSlot&
     Word shamt = imm & 0x1F;
 
     switch (d.op) {
-    case 0x13: // ALU immediate
+    case 0x13: // ALU 立即数运算
         switch (funct3) {
         case 0x0: out_slot.result = op1 + imm; break;                                // ADDI
         case 0x1: out_slot.result = op1 << shamt; break;                             // SLLI
@@ -180,7 +180,7 @@ void ExecutionEngine::executeIType(const DecodedData& d, Word op1, PipelineSlot&
         break;
     case 0x03: // Load
     case 0x23: // Store
-        out_slot.result = op1 + imm; // effective address
+        out_slot.result = op1 + imm; // 有效地址计算
         break;
     case 0x37: // LUI
         out_slot.result = imm;
@@ -196,14 +196,14 @@ void ExecutionEngine::executeIType(const DecodedData& d, Word op1, PipelineSlot&
 void ExecutionEngine::executeJump(const DecodedData& d, Word op1, PipelineSlot& out_slot, Addr pc)
 {
     out_slot.d.is_branch = true;
-    out_slot.result = pc + 4;  // return address to rd
+    out_slot.result = pc + 4;  // 返回地址写入 rd
 
     if (d.op == 0x6F) {
-        // JAL: target = pc + imm
+        // JAL：目标地址 = pc + imm
         out_slot.jump_target = pc + (Word)d.imm;
     }
     else if (d.op == 0x67) {
-        // JALR: target = (rs1 + imm) & ~1
+        // JALR：目标地址 = (rs1 + imm) & ~1
         out_slot.jump_target = (op1 + (Word)d.imm) & ~1;
     }
 }
@@ -234,35 +234,35 @@ void ExecutionEngine::executeBranch(const DecodedData& d, Word op1, Word op2, Pi
     }
     else {
         out_slot.jump_target = pc + 4;
-        out_slot.d.is_branch = false;  // not taken, no pipeline flush
+        out_slot.d.is_branch = false;  // 未命中，不冲刷流水线
     }
 }
 
 void ExecutionEngine::executeCSR(const DecodedData& d, Word rs1_val, PipelineSlot& out_slot, const RegisterFile& reg_file)
 {
-    // Read old CSR value (returned as GPR result)
+    // 读取旧 CSR 值（作为 GPR 结果返回）
     Word old_csr = reg_file.read_csr(d.csr_addr);
 
-    // 5-bit zero-extended immediate for CSRRWI/CSRRSI/CSRRCI
+    // 5 位零扩展立即数（用于 CSRRWI/CSRRSI/CSRRCI）
     Word zimm = d.rs1 & 0x1F;
 
     switch (d.funct3) {
-    case 1: // CSRRW: atomic read/write
+    case 1: // CSRRW: 原子读/写
         out_slot.csr_write_val = rs1_val;
         break;
-    case 2: // CSRRS: atomic read and set bits
+    case 2: // CSRRS: 原子读并置位
         out_slot.csr_write_val = (d.rs1 != 0) ? (old_csr | rs1_val) : old_csr;
         break;
-    case 3: // CSRRC: atomic read and clear bits
+    case 3: // CSRRC: 原子读并清零
         out_slot.csr_write_val = (d.rs1 != 0) ? (old_csr & ~rs1_val) : old_csr;
         break;
-    case 5: // CSRRWI: atomic read/write immediate
+    case 5: // CSRRWI: 原子读/写立即数
         out_slot.csr_write_val = zimm;
         break;
-    case 6: // CSRRSI: atomic read and set bits immediate
+    case 6: // CSRRSI: 原子读并置位立即数
         out_slot.csr_write_val = (zimm != 0) ? (old_csr | zimm) : old_csr;
         break;
-    case 7: // CSRRCI: atomic read and clear bits immediate
+    case 7: // CSRRCI: 原子读并清零立即数
         out_slot.csr_write_val = (zimm != 0) ? (old_csr & ~zimm) : old_csr;
         break;
     default:
@@ -270,6 +270,6 @@ void ExecutionEngine::executeCSR(const DecodedData& d, Word rs1_val, PipelineSlo
         break;
     }
 
-    // Result written to rd is the old CSR value
+    // 结果写入 rd 的是旧 CSR 值
     out_slot.result = old_csr;
 }

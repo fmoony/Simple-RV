@@ -6,14 +6,14 @@
 class IssueUnit 
 {
 public:
-    // ¼ì²éÁ½ÌõÖ¸ÁîÊÇ·ñ¿ÉÒÔÍ¬Ê±·¢Éä (Êı¾İ/½á¹¹/Ìø×ª³åÍ»¼ì²é) [cite: 35, 40]
+    // æ£€æŸ¥ä¸¤æ¡æŒ‡ä»¤æ˜¯å¦å¯ä»¥åŒæ—¶å‘å°„ (æ•°æ®/ç»“æ„/è·³è½¬å†²çªæ£€æŸ¥) 
     bool canIssueTogether(const DecodedData& i0, const DecodedData& i1) const;
 
-    // ÒëÂëÓë·¢ÉäºËĞÄÂß¼­£¬ÏÎ½Ó IF ºÍ EX ½×¶Î [cite: 36, 40]
+    // è¯‘ç ä¸å‘å°„æ ¸å¿ƒé€»è¾‘ï¼Œè¡”æ¥ IF å’Œ EX é˜¶æ®µ 
     void decodeAndIssue(IF_ID_Buffer& if_id, ID_EX_Buffer& id_ex,
         const RegisterFile& reg_file, PipelineRegisters& pipe_regs);
 
 private:
-    // ½âÎö RISC-V 32I Ö¸ÁîĞÅÏ¢ [cite: 38, 40]
+    // è§£æ RISC-V 32I æŒ‡ä»¤ä¿¡æ¯
     void decodeInstruction(PipelineSlot& slot);
 };

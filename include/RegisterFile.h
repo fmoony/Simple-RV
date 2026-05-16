@@ -18,25 +18,25 @@ private:
 public:
     RegisterFile();
 
-    // 4 read ports for dual-issue operand fetch
+    // 4 个读端口（用于双发射操作数获取）
     Word read_rs1(Byte rs1) const { return (rs1 == 0) ? 0 : gpr[rs1]; }
     Word read_rs2(Byte rs2) const { return (rs2 == 0) ? 0 : gpr[rs2]; }
     Word read_rs1_1(Byte rs1) const { return read_rs1(rs1); }
     Word read_rs2_1(Byte rs2) const { return read_rs2(rs2); }
 
-    // 2 write ports with write-enable
+    // 2 个写端口（带写使能）
     void write_rd(Byte rd, Word data, bool regWrite);
 
-    // CSR read/write interface
+    // CSR 读写接口
     Word read_csr(HalfWord csr) const;
     void write_csr(HalfWord csr, Word data);
 
-    // Hardware sets MTIP (read-only to software via CSR writes)
+    // 硬件置位 MTIP（软件通过 CSR 写入时只读）
     void hw_set_mtip(bool set) {
         if (set) mip |= MIP_MTIP; else mip &= ~MIP_MTIP;
     }
 
-    // State dump for debugging
+    // 调试状态输出
     void dump_registers() const;
 
     const std::array<Word, REG_COUNT>& Getgpr() const { return gpr; }
