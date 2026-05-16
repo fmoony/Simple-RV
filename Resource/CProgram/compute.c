@@ -18,11 +18,13 @@ void _start() {
         result ^= a ^ b;
     }
 
+    // 输出结果校验值，防止编译器优化掉计算循环
     const char* done = "Done\n";
     for (int i = 0; done[i] != '\0'; i++) {
         while ((UART_LSR & UART_LSR_TX_IDLE) == 0);
         UART_DAT = done[i];
     }
+    UART_DAT = (char)((a ^ b ^ result) & 0xFF);
 
     __asm__ volatile ("ebreak");
 }
