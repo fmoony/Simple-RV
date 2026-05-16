@@ -278,11 +278,6 @@ void CPUCore::execute()
             sstatus_new |= MSTATUS_SPIE;
             sstatus_new &= ~MSTATUS_SPP;
             reg_file.write_csr(CSR_SSTATUS, sstatus_new);
-            // 同步到 mstatus
-            mstatus_val = (mstatus_val & ~MSTATUS_SIE) | (sstatus_new & MSTATUS_SIE);
-            mstatus_val = (mstatus_val & ~MSTATUS_SPIE) | (sstatus_new & MSTATUS_SPIE);
-            mstatus_val = (mstatus_val & ~MSTATUS_SPP) | (sstatus_new & MSTATUS_SPP);
-            reg_file.write_csr(CSR_MSTATUS, mstatus_val);
             reg_file.set_privilege(spp);
 
             pc = reg_file.read_csr(CSR_SEPC);
@@ -489,19 +484,12 @@ void CPUCore::checkAndHandleInterrupts()
 
             if (delegated || prv != PRV_M) {
                 // 委托给 S-mode
-                // sstatus.SPIE = sstatus.SIE, sstatus.SIE = 0, sstatus.SPP = prv
                 Word sstatus_val = reg_file.read_csr(CSR_SSTATUS);
                 Word sstatus_new = sstatus_val & ~MSTATUS_SIE;
                 if (sstatus_val & MSTATUS_SIE) sstatus_new |= MSTATUS_SPIE;
                 else sstatus_new &= ~MSTATUS_SPIE;
                 sstatus_new = (sstatus_new & ~MSTATUS_SPP) | (prv << 8);
-                reg_file.write_csr(CSR_SSTATUS, sstatus_new);
-                // 同步到 mstatus
-                Word mstatus_new = mstatus_val;
-                mstatus_new = (mstatus_new & ~MSTATUS_SIE) | (sstatus_new & MSTATUS_SIE);
-                mstatus_new = (mstatus_new & ~MSTATUS_SPIE) | (sstatus_new & MSTATUS_SPIE);
-                mstatus_new = (mstatus_new & ~MSTATUS_SPP) | (sstatus_new & MSTATUS_SPP);
-                reg_file.write_csr(CSR_MSTATUS, mstatus_new);
+                reg_file.write_csr(CSR_SSTATUS, sstatus_new);  // 直接写入 mstatus
 
                 reg_file.write_csr(CSR_SEPC, pc);
                 reg_file.write_csr(CSR_SCAUSE, intr.cause);
@@ -539,13 +527,7 @@ void CPUCore::handleTrap(Addr fault_pc, Word cause_val, Word tval_val)
         if (sstatus_val & MSTATUS_SIE) sstatus_new |= MSTATUS_SPIE;
         else sstatus_new &= ~MSTATUS_SPIE;
         sstatus_new = (sstatus_new & ~MSTATUS_SPP) | (prv << 8);
-        reg_file.write_csr(CSR_SSTATUS, sstatus_new);
-
-        Word mstatus_val = reg_file.read_csr(CSR_MSTATUS);
-        mstatus_val = (mstatus_val & ~MSTATUS_SIE) | (sstatus_new & MSTATUS_SIE);
-        mstatus_val = (mstatus_val & ~MSTATUS_SPIE) | (sstatus_new & MSTATUS_SPIE);
-        mstatus_val = (mstatus_val & ~MSTATUS_SPP) | (sstatus_new & MSTATUS_SPP);
-        reg_file.write_csr(CSR_MSTATUS, mstatus_val);
+        reg_file.write_csr(CSR_SSTATUS, sstatus_new);  // 直接写入 mstatus
 
         reg_file.write_csr(CSR_SEPC, fault_pc);
         reg_file.write_csr(CSR_SCAUSE, cause_val);

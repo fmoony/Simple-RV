@@ -39,9 +39,11 @@ Word RegisterFile::read_csr(HalfWord csr) const
     case CSR_MTVAL:     return mtval;
     case CSR_MIP:       return mip;
 
-    // 监管者模式陷阱设置
-    case CSR_SSTATUS:   return sstatus;
-    case CSR_SIE:       return sie;
+    // 监管者模式陷阱设置（sstatus/sie/sip 是 mstatus/mie/mip 的受限视图）
+    case CSR_SSTATUS:
+        return mstatus & (MSTATUS_SIE | MSTATUS_SPIE | MSTATUS_SPP);
+    case CSR_SIE:
+        return mie & (MIE_SSIE | MIE_STIE | MIE_SEIE);
     case CSR_STVEC:     return stvec;
 
     // 监管者模式陷阱处理
@@ -49,7 +51,8 @@ Word RegisterFile::read_csr(HalfWord csr) const
     case CSR_SEPC:      return sepc;
     case CSR_SCAUSE:    return scause;
     case CSR_STVAL:     return stval;
-    case CSR_SIP:       return sip;
+    case CSR_SIP:
+        return mip & (MIP_SSIP | MIP_STIP | MIP_SEIP);
 
     // Supervisor (Sv32 MMU)
     case CSR_SATP:      return satp;
@@ -106,20 +109,15 @@ void RegisterFile::write_csr(HalfWord csr, Word data)
         break;
     }
 
-    // 监管者模式陷阱设置
+    // 监管者模式陷阱设置（直接写入 mstatus/mie/mip，保持别名一致性）
     case CSR_SSTATUS: {
-        // sstatus 是 mstatus 的受限视图
-        // 可写位：SIE, SPIE, SPP（bits 1,5,8）
         Word mask = MSTATUS_SIE | MSTATUS_SPIE | MSTATUS_SPP;
-        sstatus = (sstatus & ~mask) | (data & mask);
-        // 同步到 mstatus 的对应位
         mstatus = (mstatus & ~mask) | (data & mask);
         break;
     }
     case CSR_SIE: {
-        // sie 是 mie 的受限视图（仅 S-level 中断位可写）
         Word mask = MIE_SSIE | MIE_STIE | MIE_SEIE;
-        sie = (sie & ~mask) | (data & mask);
+        mie = (mie & ~mask) | (data & mask);
         break;
     }
     case CSR_STVEC:   stvec = data; break;
@@ -131,9 +129,8 @@ void RegisterFile::write_csr(HalfWord csr, Word data)
     case CSR_STVAL:    stval = data; break;
 
     case CSR_SIP: {
-        // SSIP (bit 1) 可由软件写入
         Word writable_mask = MIP_SSIP;
-        sip = (sip & ~writable_mask) | (data & writable_mask);
+        mip = (mip & ~writable_mask) | (data & writable_mask);
         break;
     }
 
