@@ -18,7 +18,7 @@ bool IssueUnit::canIssueTogether(const DecodedData& i0, const DecodedData& i1,
         // 预测跳转：槽位 1 来自错误路径，不能配对
         if (i0.predicted_taken) return false;
         // 预测不跳转：允许配对，但槽位 1 不能是系统指令
-        if (i1.is_ecall || i1.is_mret || i1.is_csr) return false;
+        if (i1.is_ecall || i1.is_mret || i1.is_sret || i1.is_csr) return false;
         // 分支无内存副作用，允许 branch + 任意兼容指令配对
     }
 
@@ -31,8 +31,8 @@ bool IssueUnit::canIssueTogether(const DecodedData& i0, const DecodedData& i1,
     }
 
     // 4. 系统指令必须单独发射
-    if (i0.is_ecall || i0.is_mret || i0.is_csr ||
-        i1.is_ecall || i1.is_mret || i1.is_csr) {
+    if (i0.is_ecall || i0.is_mret || i0.is_sret || i0.is_csr ||
+        i1.is_ecall || i1.is_mret || i1.is_sret || i1.is_csr) {
         return false;
     }
 
@@ -152,6 +152,7 @@ void IssueUnit::decodeInstruction(PipelineSlot& slot, Addr slot_pc)
     d.is_branch = false;
     d.is_ecall = false;
     d.is_mret = false;
+    d.is_sret = false;
     d.is_csr = false;
     d.is_illegal = false;
     d.csr_addr = 0;
@@ -227,6 +228,8 @@ void IssueUnit::decodeInstruction(PipelineSlot& slot, Addr slot_pc)
                 d.is_ecall = true;
             } else if (funct12 == 0x302) {
                 d.is_mret = true;
+            } else if (funct12 == 0x102) {
+                d.is_sret = true;               // SRET：从监管者模式返回
             } else if (funct12 == 0x001) {
                 // EBREAK：穿过流水线，在 WB 阶段处理
             } else if (funct12 == 0x105) {

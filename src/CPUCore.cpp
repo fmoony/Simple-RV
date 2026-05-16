@@ -231,60 +231,86 @@ void CPUCore::execute()
     }
 
     // --- 异常处理：检查两个槽位（先查槽位 0，更早的指令优先） ---
-    // 槽位 0 检查
-    if (pipe_regs.ex_mem.slots[0].valid) {
-        auto& d = pipe_regs.ex_mem.slots[0].d;
-        Addr current_instruction_pc = pipe_regs.ex_mem.pc;
+    // 辅助 lambda：处理槽位中的陷阱指令
+    auto handleSlotTrap = [&](PipelineSlot& slot, Addr slot_pc) {
+        auto& d = slot.d;
 
         if (d.is_ecall) {
-            std::cout << "[Trap] ECALL detected at 0x" << std::hex << current_instruction_pc << std::dec << std::endl;
-            handleTrap(current_instruction_pc + 4, MCAUSE_ECALL_M, 0);
+            Byte prv = reg_file.get_privilege();
+            Word ecall_cause = (prv == PRV_M) ? MCAUSE_ECALL_M :
+                               (prv == PRV_S) ? MCAUSE_ECALL_S : MCAUSE_ECALL_U;
+            std::cout << "[Trap] ECALL from " << (prv == PRV_M ? "M" : prv == PRV_S ? "S" : "U")
+                      << "-mode at 0x" << std::hex << slot_pc << std::dec << std::endl;
+            handleTrap(slot_pc + 4, ecall_cause, 0);
         }
         else if (d.is_illegal) {
             std::cout << "[Trap] Illegal instruction 0x" << std::hex
-                      << pipe_regs.ex_mem.slots[0].instr
-                      << " at PC 0x" << current_instruction_pc << std::dec << std::endl;
-            handleTrap(current_instruction_pc, MCAUSE_ILLEGAL,
-                       pipe_regs.ex_mem.slots[0].instr);
+                      << slot.instr << " at PC 0x" << slot_pc << std::dec << std::endl;
+            handleTrap(slot_pc, MCAUSE_ILLEGAL, slot.instr);
         }
         else if (d.is_mret) {
-            std::cout << "[Trap] MRET detected. Returning..." << std::endl;
-            // 从 MPIE 恢复 MIE，设置 MPIE 为 1（RISC-V 规范）
+            std::cout << "[Trap] MRET detected. Returning to "
+                      << (reg_file.read_csr(CSR_MSTATUS) & MSTATUS_MPP ? "M" : "?")
+                      << "-mode..." << std::endl;
             Word mstatus_val = reg_file.read_csr(CSR_MSTATUS);
+            Byte mpp = (mstatus_val & MSTATUS_MPP) >> 11;
+            // MIE = MPIE, MPIE = 1, MPP = U (最低特权)
             Word mstatus_new = mstatus_val & ~MSTATUS_MIE;
-            if (mstatus_val & MSTATUS_MPIE) {
-                mstatus_new |= MSTATUS_MIE;   // MIE = MPIE
-            }
-            mstatus_new |= MSTATUS_MPIE;       // MPIE = 1
+            if (mstatus_val & MSTATUS_MPIE) mstatus_new |= MSTATUS_MIE;
+            mstatus_new |= MSTATUS_MPIE;
+            mstatus_new &= ~MSTATUS_MPP;  // MPP = 0 (U-mode)
             reg_file.write_csr(CSR_MSTATUS, mstatus_new);
+            reg_file.set_privilege(mpp);
 
             pc = reg_file.read_csr(CSR_MEPC);
             pipe_regs.flush();
             pipe_regs.ex_mem.slots[0].valid = false;
             pipe_regs.ex_mem.slots[1].valid = false;
         }
+        else if (d.is_sret) {
+            std::cout << "[Trap] SRET detected. Returning to S/U-mode..." << std::endl;
+            Word sstatus_val = reg_file.read_csr(CSR_SSTATUS);
+            Word mstatus_val = reg_file.read_csr(CSR_MSTATUS);
+            Byte spp = (sstatus_val & MSTATUS_SPP) ? PRV_S : PRV_U;
+            // SIE = SPIE, SPIE = 1, SPP = U
+            Word sstatus_new = sstatus_val & ~MSTATUS_SIE;
+            if (sstatus_val & MSTATUS_SPIE) sstatus_new |= MSTATUS_SIE;
+            sstatus_new |= MSTATUS_SPIE;
+            sstatus_new &= ~MSTATUS_SPP;
+            reg_file.write_csr(CSR_SSTATUS, sstatus_new);
+            // 同步到 mstatus
+            mstatus_val = (mstatus_val & ~MSTATUS_SIE) | (sstatus_new & MSTATUS_SIE);
+            mstatus_val = (mstatus_val & ~MSTATUS_SPIE) | (sstatus_new & MSTATUS_SPIE);
+            mstatus_val = (mstatus_val & ~MSTATUS_SPP) | (sstatus_new & MSTATUS_SPP);
+            reg_file.write_csr(CSR_MSTATUS, mstatus_val);
+            reg_file.set_privilege(spp);
+
+            pc = reg_file.read_csr(CSR_SEPC);
+            pipe_regs.flush();
+            pipe_regs.ex_mem.slots[0].valid = false;
+            pipe_regs.ex_mem.slots[1].valid = false;
+        }
+    };
+
+    // 槽位 0 检查
+    if (pipe_regs.ex_mem.slots[0].valid) {
+        Addr current_instruction_pc = pipe_regs.ex_mem.pc;
+        bool slot0_trapped = (pipe_regs.ex_mem.slots[0].d.is_ecall ||
+                              pipe_regs.ex_mem.slots[0].d.is_illegal ||
+                              pipe_regs.ex_mem.slots[0].d.is_mret ||
+                              pipe_regs.ex_mem.slots[0].d.is_sret);
+        if (slot0_trapped) {
+            handleSlotTrap(pipe_regs.ex_mem.slots[0], current_instruction_pc);
+        }
         else if (pipe_regs.ex_mem.slots[1].valid) {
             // 槽位 0 正常，检查槽位 1
-            auto& d1 = pipe_regs.ex_mem.slots[1].d;
-            Addr slot1_pc = pipe_regs.ex_mem.pc + 4;  // 槽位 1 的 PC = 槽位 0 的 PC + 4
-
-            if (d1.is_ecall) {
-                std::cout << "[Trap] ECALL detected at 0x" << std::hex << slot1_pc << std::dec << std::endl;
-                handleTrap(slot1_pc + 4, MCAUSE_ECALL_M, 0);
-            }
-            else if (d1.is_illegal) {
-                std::cout << "[Trap] Illegal instruction 0x" << std::hex
-                          << pipe_regs.ex_mem.slots[1].instr
-                          << " at PC 0x" << slot1_pc << std::dec << std::endl;
-                handleTrap(slot1_pc, MCAUSE_ILLEGAL,
-                           pipe_regs.ex_mem.slots[1].instr);
-            }
-            else if (d1.is_mret) {
-                std::cout << "[Trap] MRET detected in slot 1. Returning..." << std::endl;
-                pc = reg_file.read_csr(CSR_MEPC);
-                pipe_regs.flush();
-                pipe_regs.ex_mem.slots[0].valid = false;
-                pipe_regs.ex_mem.slots[1].valid = false;
+            bool slot1_trapped = (pipe_regs.ex_mem.slots[1].d.is_ecall ||
+                                  pipe_regs.ex_mem.slots[1].d.is_illegal ||
+                                  pipe_regs.ex_mem.slots[1].d.is_mret ||
+                                  pipe_regs.ex_mem.slots[1].d.is_sret);
+            if (slot1_trapped) {
+                Addr slot1_pc = pipe_regs.ex_mem.pc + 4;
+                handleSlotTrap(pipe_regs.ex_mem.slots[1], slot1_pc);
             }
         }
     }
@@ -409,65 +435,138 @@ void CPUCore::fetch()
 // =========================================================================
 void CPUCore::checkAndHandleInterrupts()
 {
+    Byte prv = reg_file.get_privilege();
     Word mstatus_val = reg_file.read_csr(CSR_MSTATUS);
-    Word mie_val     = reg_file.read_csr(CSR_MIE);
     Word mip_val     = reg_file.read_csr(CSR_MIP);
 
-    // 全局中断使能必须已设置
-    if (!(mstatus_val & MSTATUS_MIE)) return;
+    // 检查当前特权级的全局中断使能
+    bool global_ie;
+    if (prv == PRV_M) {
+        global_ie = mstatus_val & MSTATUS_MIE;
+    } else {
+        // S-mode 或 U-mode：检查 SIE
+        global_ie = mstatus_val & MSTATUS_SIE;
+    }
+    if (!global_ie) return;
 
-    // 定时器中断：MIE.MTIE && MIP.MTIP
-    if ((mie_val & MIE_MTIE) && (mip_val & MIP_MTIP)) {
-        stats.interrupt_flushes++;
-        std::cout << "[Interrupt] Timer interrupt triggered at PC=0x"
-                  << std::hex << pc << std::dec << std::endl;
-
-        // 将 MIE 保存到 MPIE，清除 MIE（防止重入中断）
-        Word mstatus_new = mstatus_val & ~MSTATUS_MIE;          // Clear MIE
-        mstatus_new = (mstatus_new & ~MSTATUS_MPIE) |
-                      ((mstatus_val & MSTATUS_MIE) ? MSTATUS_MPIE : 0);  // MPIE = old MIE
-        reg_file.write_csr(CSR_MSTATUS, mstatus_new);
-
-        reg_file.write_csr(CSR_MEPC, pc);
-        reg_file.write_csr(CSR_MCAUSE, MCAUSE_TIMER_INT);
-        pc = reg_file.read_csr(CSR_MTVEC);
-        pipe_regs.flush();
-        return;
+    // 检查中断（优先级：MEI > MSI > MTI > SEI > SSI > STI）
+    // RISC-V 规范：M-mode 中断优先级高于 S-mode
+    Word ie_val, ip_val;
+    if (prv == PRV_M) {
+        ie_val = reg_file.read_csr(CSR_MIE);
+        ip_val = mip_val;
+    } else {
+        ie_val = reg_file.read_csr(CSR_SIE);
+        ip_val = reg_file.read_csr(CSR_SIP);
     }
 
-    // 软件中断：MIE.MSIE && MIP.MSIP
-    if ((mie_val & MIE_MSIE) && (mip_val & MIP_MSIP)) {
-        stats.interrupt_flushes++;
-        std::cout << "[Interrupt] Software interrupt triggered at PC=0x"
-                  << std::hex << pc << std::dec << std::endl;
+    // 中断检查结构：{cause, ie_mask, ip_mask, name}
+    struct { Word cause; Word ie_mask; Word ip_mask; const char* name; } intrs[] = {
+        {MCAUSE_MEI_INT,  MIE_MEIE,  MIP_MEIP,  "External"},
+        {MCAUSE_MSI_INT,  MIE_MSIE,  MIP_MSIP,  "Software"},
+        {MCAUSE_TIMER_INT,MIE_MTIE,  MIP_MTIP,  "Timer"},
+        {MCAUSE_SEI_INT,  MIE_SEIE,  MIP_SEIP,  "External(S)"},
+        {MCAUSE_SSI_INT,  MIE_SSIE,  MIP_SSIP,  "Software(S)"},
+        {MCAUSE_STI_INT,  MIE_STIE,  MIP_STIP,  "Timer(S)"},
+    };
 
-        reg_file.write_csr(CSR_MEPC, pc);
-        reg_file.write_csr(CSR_MCAUSE, MCAUSE_MSI_INT);
-        pc = reg_file.read_csr(CSR_MTVEC);
-        pipe_regs.flush();
-        return;
-    }
+    for (auto& intr : intrs) {
+        if ((ie_val & intr.ie_mask) && (ip_val & intr.ip_mask)) {
+            stats.interrupt_flushes++;
 
-    // 外部中断：MIE.MEIE && MIP.MEIP
-    if ((mie_val & MIE_MEIE) && (mip_val & MIP_MEIP)) {
-        stats.interrupt_flushes++;
-        std::cout << "[Interrupt] External interrupt triggered at PC=0x"
-                  << std::hex << pc << std::dec << std::endl;
+            // 判断是否委托给 S-mode
+            bool delegated = reg_file.interrupt_delegated(intr.cause);
+            bool take_in_smode = (prv != PRV_M) || delegated;
 
-        reg_file.write_csr(CSR_MEPC, pc);
-        reg_file.write_csr(CSR_MCAUSE, MCAUSE_MEI_INT);
-        pc = reg_file.read_csr(CSR_MTVEC);
-        pipe_regs.flush();
-        return;
+            if (take_in_smode && prv != PRV_M) {
+                // 已在 S/U-mode，在 S-mode 处理
+                take_in_smode = true;
+            }
+
+            std::cout << "[Interrupt] " << intr.name << " interrupt at PC=0x"
+                      << std::hex << pc << (delegated ? " (delegated to S)" : "")
+                      << std::dec << std::endl;
+
+            if (delegated || prv != PRV_M) {
+                // 委托给 S-mode
+                // sstatus.SPIE = sstatus.SIE, sstatus.SIE = 0, sstatus.SPP = prv
+                Word sstatus_val = reg_file.read_csr(CSR_SSTATUS);
+                Word sstatus_new = sstatus_val & ~MSTATUS_SIE;
+                if (sstatus_val & MSTATUS_SIE) sstatus_new |= MSTATUS_SPIE;
+                else sstatus_new &= ~MSTATUS_SPIE;
+                sstatus_new = (sstatus_new & ~MSTATUS_SPP) | (prv << 8);
+                reg_file.write_csr(CSR_SSTATUS, sstatus_new);
+                // 同步到 mstatus
+                Word mstatus_new = mstatus_val;
+                mstatus_new = (mstatus_new & ~MSTATUS_SIE) | (sstatus_new & MSTATUS_SIE);
+                mstatus_new = (mstatus_new & ~MSTATUS_SPIE) | (sstatus_new & MSTATUS_SPIE);
+                mstatus_new = (mstatus_new & ~MSTATUS_SPP) | (sstatus_new & MSTATUS_SPP);
+                reg_file.write_csr(CSR_MSTATUS, mstatus_new);
+
+                reg_file.write_csr(CSR_SEPC, pc);
+                reg_file.write_csr(CSR_SCAUSE, intr.cause);
+                reg_file.set_privilege(PRV_S);
+                pc = reg_file.read_csr(CSR_STVEC);
+            } else {
+                // M-mode 处理
+                Word mstatus_new = mstatus_val & ~MSTATUS_MIE;
+                mstatus_new = (mstatus_new & ~MSTATUS_MPIE) |
+                              ((mstatus_val & MSTATUS_MIE) ? MSTATUS_MPIE : 0);
+                mstatus_new = (mstatus_new & ~MSTATUS_MPP) | (prv << 11);
+                reg_file.write_csr(CSR_MSTATUS, mstatus_new);
+
+                reg_file.write_csr(CSR_MEPC, pc);
+                reg_file.write_csr(CSR_MCAUSE, intr.cause);
+                reg_file.set_privilege(PRV_M);
+                pc = reg_file.read_csr(CSR_MTVEC);
+            }
+
+            pipe_regs.flush();
+            return;
+        }
     }
 }
 
-void CPUCore::handleTrap(Addr fault_pc, Word mcause_val, Word mtval_val)
+void CPUCore::handleTrap(Addr fault_pc, Word cause_val, Word tval_val)
 {
-    reg_file.write_csr(CSR_MEPC, fault_pc);
-    reg_file.write_csr(CSR_MCAUSE, mcause_val);
-    reg_file.write_csr(CSR_MTVAL, mtval_val);
-    pc = reg_file.read_csr(CSR_MTVEC);
+    Byte prv = reg_file.get_privilege();
+    bool delegated = reg_file.exception_delegated(cause_val);
+
+    if (delegated && prv != PRV_M) {
+        // 委托给 S-mode
+        Word sstatus_val = reg_file.read_csr(CSR_SSTATUS);
+        Word sstatus_new = sstatus_val & ~MSTATUS_SIE;
+        if (sstatus_val & MSTATUS_SIE) sstatus_new |= MSTATUS_SPIE;
+        else sstatus_new &= ~MSTATUS_SPIE;
+        sstatus_new = (sstatus_new & ~MSTATUS_SPP) | (prv << 8);
+        reg_file.write_csr(CSR_SSTATUS, sstatus_new);
+
+        Word mstatus_val = reg_file.read_csr(CSR_MSTATUS);
+        mstatus_val = (mstatus_val & ~MSTATUS_SIE) | (sstatus_new & MSTATUS_SIE);
+        mstatus_val = (mstatus_val & ~MSTATUS_SPIE) | (sstatus_new & MSTATUS_SPIE);
+        mstatus_val = (mstatus_val & ~MSTATUS_SPP) | (sstatus_new & MSTATUS_SPP);
+        reg_file.write_csr(CSR_MSTATUS, mstatus_val);
+
+        reg_file.write_csr(CSR_SEPC, fault_pc);
+        reg_file.write_csr(CSR_SCAUSE, cause_val);
+        reg_file.write_csr(CSR_STVAL, tval_val);
+        reg_file.set_privilege(PRV_S);
+        pc = reg_file.read_csr(CSR_STVEC);
+    } else {
+        // M-mode 处理
+        Word mstatus_val = reg_file.read_csr(CSR_MSTATUS);
+        Word mstatus_new = mstatus_val & ~MSTATUS_MIE;
+        mstatus_new = (mstatus_new & ~MSTATUS_MPIE) |
+                      ((mstatus_val & MSTATUS_MIE) ? MSTATUS_MPIE : 0);
+        mstatus_new = (mstatus_new & ~MSTATUS_MPP) | (prv << 11);
+        reg_file.write_csr(CSR_MSTATUS, mstatus_new);
+
+        reg_file.write_csr(CSR_MEPC, fault_pc);
+        reg_file.write_csr(CSR_MCAUSE, cause_val);
+        reg_file.write_csr(CSR_MTVAL, tval_val);
+        reg_file.set_privilege(PRV_M);
+        pc = reg_file.read_csr(CSR_MTVEC);
+    }
 
     pipe_regs.flush();
     pipe_regs.ex_mem.slots[0].valid = false;

@@ -47,6 +47,7 @@ struct DecodedData
     bool is_branch = false;  // 是否为跳转指令
     bool is_ecall = false;
     bool is_mret = false;
+    bool is_sret = false;       // SRET 指令 (op=0x73, funct12=0x102)
     bool is_csr = false;        // CSR 指令 (op=0x73, funct3!=0)
     bool is_illegal = false;    // 非法指令
     HalfWord csr_addr = 0;      // 12 位 CSR 地址 (instr[31:20])
@@ -140,17 +141,57 @@ struct MEM_WB_Buffer
 #define CSR_MTVAL      0x343  // 机器模式异常值
 #define CSR_MIP        0x344  // 机器模式中断 pending
 
+// --- 监管者模式 (Supervisor Mode) CSR 地址映射 ---
+#define CSR_SSTATUS    0x100  // 监管者状态寄存器
+#define CSR_SIE        0x104  // 监管者中断使能
+#define CSR_STVEC      0x105  // 监管者陷阱向量基址
+#define CSR_SSCRATCH   0x140  // 监管者临时寄存器
+#define CSR_SEPC       0x141  // 监管者异常 PC
+#define CSR_SCAUSE     0x142  // 监管者异常原因
+#define CSR_STVAL      0x143  // 监管者异常值
+#define CSR_SIP        0x144  // 监管者中断 pending
+
 // --- MSTATUS 位掩码 ---
+#define MSTATUS_SIE   0x00000002  // bit 1: 监管者中断使能
 #define MSTATUS_MIE   0x00000008  // bit 3: 机器模式中断使能
+#define MSTATUS_SPIE  0x00000020  // bit 5: 监管者先前中断使能
 #define MSTATUS_MPIE  0x00000080  // bit 7: 机器模式先前中断使能
+#define MSTATUS_SPP   0x00000100  // bit 8: 监管者先前特权级
+#define MSTATUS_MPP   0x00001800  // bits 12:11: 机器先前特权级
+
+// 特权级编码
+#define PRV_U 0
+#define PRV_S 1
+#define PRV_M 3
 
 // --- MIE / MIP 位掩码 ---
-#define MIE_MSIE  0x00000008  // bit 3: 软件中断
-#define MIE_MTIE  0x00000080  // bit 7: 定时器中断
-#define MIE_MEIE  0x00000800  // bit 11: 外部中断
+#define MIE_SSIE  0x00000002  // bit 1: 监管者软件中断
+#define MIE_MSIE  0x00000008  // bit 3: 机器软件中断
+#define MIE_STIE  0x00000020  // bit 5: 监管者定时器中断
+#define MIE_MTIE  0x00000080  // bit 7: 机器定时器中断
+#define MIE_SEIE  0x00000200  // bit 9: 监管者外部中断
+#define MIE_MEIE  0x00000800  // bit 11: 机器外部中断
+#define MIP_SSIP  0x00000002
 #define MIP_MSIP  0x00000008
+#define MIP_STIP  0x00000020
 #define MIP_MTIP  0x00000080
+#define MIP_SEIP  0x00000200
 #define MIP_MEIP  0x00000800
+
+// --- MEDELEG 位掩码（可委托的异常） ---
+#define MEDELEG_INST_MISALIGNED  (1 << 0)
+#define MEDELEG_INST_ACCESS      (1 << 1)
+#define MEDELEG_ILLEGAL          (1 << 2)
+#define MEDELEG_BREAKPOINT       (1 << 3)
+#define MEDELEG_LOAD_MISALIGNED  (1 << 4)
+#define MEDELEG_LOAD_ACCESS      (1 << 5)
+#define MEDELEG_STORE_MISALIGNED (1 << 6)
+#define MEDELEG_STORE_ACCESS     (1 << 7)
+#define MEDELEG_ECALL_U          (1 << 8)
+#define MEDELEG_ECALL_S          (1 << 9)
+#define MEDELEG_INST_PAGE_FAULT  (1 << 12)
+#define MEDELEG_LOAD_PAGE_FAULT  (1 << 13)
+#define MEDELEG_STORE_PAGE_FAULT (1 << 15)
 
 // --- MCAUSE 异常/中断代码 ---
 #define MCAUSE_ILLEGAL          2
@@ -166,6 +207,14 @@ struct MEM_WB_Buffer
 #define MCAUSE_TIMER_INT       0x80000007  // bit31=1 + 原因码 7
 #define MCAUSE_MSI_INT         0x80000003  // bit31=1 + 原因码 3
 #define MCAUSE_MEI_INT         0x8000000B  // bit31=1 + 原因码 11
+#define MCAUSE_SSI_INT         0x80000001  // bit31=1 + 原因码 1 (监管者软件中断)
+#define MCAUSE_STI_INT         0x80000005  // bit31=1 + 原因码 5 (监管者定时器中断)
+#define MCAUSE_SEI_INT         0x80000009  // bit31=1 + 原因码 9 (监管者外部中断)
+
+// ECALL 异常原因码（按特权级区分）
+#define MCAUSE_ECALL_U         8
+#define MCAUSE_ECALL_S         9
+#define MCAUSE_ECALL_M         11
 
 // --- MISA ---
 #define MISA_RV32I  0x40000104  // RV32I 基础 ISA
