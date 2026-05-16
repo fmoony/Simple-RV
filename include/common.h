@@ -8,7 +8,7 @@
 #include <fstream>
 
 // RV32I 核心常量
-const uint32_t MEMORY_SIZE = 64 * 1024; // 64KB
+const uint32_t MEMORY_SIZE = 128 * 1024 * 1024; // 128MB
 const uint32_t REG_COUNT = 32;          // x0-x31
 
 using Word = uint32_t;

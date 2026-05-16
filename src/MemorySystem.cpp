@@ -167,7 +167,12 @@ void MemorySystem::load_program(const std::string& filename)
         throw std::runtime_error("Failed to open program file");
     }
 
-    file.read(reinterpret_cast<char*>(&memory[0]), 0x8000);
+    // 读取整个文件（最大不超过物理内存大小）
+    file.seekg(0, std::ios::end);
+    size_t file_size = file.tellg();
+    file.seekg(0, std::ios::beg);
+    if (file_size > memory.size()) file_size = memory.size();
+    file.read(reinterpret_cast<char*>(&memory[0]), file_size);
     file.close();
 }
 
