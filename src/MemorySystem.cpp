@@ -239,6 +239,11 @@ TranslationResult MemorySystem::translate(Addr vaddr, bool is_write, bool is_fet
     result.paddr = vaddr;  // 默认：直接映射
     result.fault = false;
 
+    // M-mode 始终使用裸机地址（物理地址 = 虚拟地址）
+    if (privilege == PRV_M) {
+        return result;
+    }
+
     // 检查 SATP 模式：bit 31 = 0 => 裸机（无地址转换）
     Word mode = (satp >> 31) & 0x1;
     if (mode == 0) {
