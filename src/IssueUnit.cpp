@@ -10,9 +10,16 @@ bool IssueUnit::canIssueTogether(const DecodedData& i0, const DecodedData& i1,
         return false;
     }
 
-    // 2. 控制冒险：分支/跳转必须单独在槽位 0 发射
-    if (i0.is_branch || i1.is_branch) {
-        return false;
+    // 2. 控制冒险：分支必须在槽位 0，且仅当预测不跳转时才允许配对
+    if (i1.is_branch) {
+        return false;  // 分支不能在槽位 1
+    }
+    if (i0.is_branch) {
+        // 预测跳转：槽位 1 来自错误路径，不能配对
+        if (i0.predicted_taken) return false;
+        // 预测不跳转：允许配对，但槽位 1 不能是系统指令
+        if (i1.is_ecall || i1.is_mret || i1.is_csr) return false;
+        // 分支无内存副作用，允许 branch + 任意兼容指令配对
     }
 
     // 3. 同周期 Load-Use 冒险（转发无法解决）
