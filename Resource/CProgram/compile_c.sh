@@ -4,7 +4,7 @@
 # 需要 riscv64-unknown-elf-gcc（带 zicsr 支持）
 
 echo "正在编译 main.c..."
-riscv64-unknown-elf-gcc -O1 -march=rv32i_zicsr -mabi=ilp32 \
+riscv64-unknown-elf-gcc -O2 -march=rv32i_zicsr -mabi=ilp32 \
     -nostartfiles -nostdlib -fno-toplevel-reorder \
     -T link.ld main.c -o main.elf
 
