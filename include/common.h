@@ -48,6 +48,7 @@ struct DecodedData
     bool is_ecall = false;
     bool is_mret = false;
     bool is_sret = false;       // SRET 指令 (op=0x73, funct12=0x102)
+    bool is_sfence = false;     // SFENCE.VMA (op=0x73, funct12=0x104)
     bool is_csr = false;        // CSR 指令 (op=0x73, funct3!=0)
     bool is_illegal = false;    // 非法指令
     HalfWord csr_addr = 0;      // 12 位 CSR 地址 (instr[31:20])

@@ -153,6 +153,7 @@ void IssueUnit::decodeInstruction(PipelineSlot& slot, Addr slot_pc)
     d.is_ecall = false;
     d.is_mret = false;
     d.is_sret = false;
+    d.is_sfence = false;
     d.is_csr = false;
     d.is_illegal = false;
     d.csr_addr = 0;
@@ -230,6 +231,8 @@ void IssueUnit::decodeInstruction(PipelineSlot& slot, Addr slot_pc)
                 d.is_mret = true;
             } else if (funct12 == 0x102) {
                 d.is_sret = true;               // SRET：从监管者模式返回
+            } else if (funct12 == 0x104) {
+                d.is_sfence = true;             // SFENCE.VMA：TLB 刷新
             } else if (funct12 == 0x001) {
                 // EBREAK：穿过流水线，在 WB 阶段处理
             } else if (funct12 == 0x105) {

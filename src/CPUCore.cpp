@@ -196,6 +196,13 @@ void CPUCore::execute()
         }
     }
 
+    // 提交 SFENCE.VMA：刷新 TLB
+    for (int i = 0; i < 2; ++i) {
+        if (pipe_regs.ex_mem.slots[i].valid && pipe_regs.ex_mem.slots[i].d.is_sfence) {
+            memory.tlb_flush();
+        }
+    }
+
     // --- 控制冒险：分支/跳转（含 BTFNT 预测验证） ---
     auto& br_slot = pipe_regs.ex_mem.slots[0];
     if (br_slot.valid && br_slot.d.is_branch)
