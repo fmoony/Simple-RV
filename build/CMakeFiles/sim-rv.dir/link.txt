@@ -1,0 +1,1 @@
+/usr/bin/c++  -Wall -Wextra -O3 -flto "CMakeFiles/sim-rv.dir/src/CPUCore.cpp.o" "CMakeFiles/sim-rv.dir/src/ExecutionEngine.cpp.o" "CMakeFiles/sim-rv.dir/src/IssueUnit.cpp.o" "CMakeFiles/sim-rv.dir/src/MemorySystem.cpp.o" "CMakeFiles/sim-rv.dir/src/PipelineRegisters.cpp.o" "CMakeFiles/sim-rv.dir/src/RegisterFile.cpp.o" "CMakeFiles/sim-rv.dir/src/main.cpp.o" -o sim-rv 

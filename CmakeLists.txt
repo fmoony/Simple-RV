@@ -1,0 +1,31 @@
+# 1. 声明 CMake 最低版本要求
+cmake_minimum_required(VERSION 3.15)
+
+# 2. 声明项目名称、版本号及使用的语言 (C++)
+project(Simple-RV 
+        VERSION 1.0.0 
+        LANGUAGES CXX)
+
+# 3. 强制要求 C++17 标准 (你的代码中用到了 std::array, std::vector 等现代特性)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF) # 禁用编译器特有扩展，保证跨平台纯粹性
+
+# 4. 【核心性能引擎】：设置编译选项
+# -Wall -Wextra: 开启所有合理的警告，帮你排查 C++ 潜在的内存泄漏或未定义行为
+# -O3: 开启最高级别优化！这会让你的模拟器在 WSL 里跑得像飞一样，极大缓解之前贪吃蛇的性能焦虑
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -O3 -flto")
+endif()
+
+# 5. 自动收集当前目录下所有的 .cpp 和 .h 文件
+# (注意：如果你的项目有子文件夹，比如 src/ 和 include/，这里需要相应修改)
+file(GLOB SOURCES "src/*.cpp")
+file(GLOB HEADERS "include/*.h" "include/*.hpp")
+
+# 6. 告诉 CMake 用这些文件生成一个名为 sim-rv 的可执行程序
+add_executable(sim-rv ${SOURCES} ${HEADERS})
+
+# (可选) 如果你希望最终生成的执行文件带有更清晰的输出，可以开启多线程支持
+find_package(Threads REQUIRED)
+target_link_libraries(sim-rv PRIVATE Threads::Threads)

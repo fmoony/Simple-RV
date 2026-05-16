@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-ChildItem -Path \"D:\\\\VisualStudioprogramme\\\\Simple-RV\\\\Simple-RV-Plus\" -Recurse -File | ForEach-Object { $_.FullName })",
+      "PowerShell(Get-ChildItem -Path \"D:\\\\VisualStudioprogramme\\\\Simple-RV\\\\Simple-RV-Plus\" -Directory -Recurse | ForEach-Object { $_.FullName })",
+      "Bash(Get-Content *)",
+      "PowerShell(Get-Content *)",
+      "Bash(g++ -std=c++17 -Wall -Wextra -O0 -I include -c src/CPUCore.cpp -o /tmp/cpucore.o)",
+      "PowerShell(wsl.exe --cd /mnt/d/VisualStudioprogramme/Simple-RV/Simple-RV-Plus/build -- ls -la sim-rv 2>&1)",
+      "PowerShell(wsl.exe --cd /mnt/d/VisualStudioprogramme/Simple-RV/Simple-RV-Plus -- bash -c \"./build/sim-rv ./Resource/hello_uart.bin\" 2>&1)",
+      "PowerShell(wsl.exe --cd /mnt/d/VisualStudioprogramme/Simple-RV/Simple-RV-Plus -- bash -c \"./build/sim-rv ./Resource/test_trap.bin\" 2>&1)",
+      "PowerShell(wsl.exe --cd /mnt/d/VisualStudioprogramme/Simple-RV/Simple-RV-Plus -- bash -c \"./build/sim-rv ./Resource/isa_complete_test.bin\" 2>&1)",
+      "PowerShell(wsl.exe --cd /mnt/d/VisualStudioprogramme/Simple-RV/Simple-RV-Plus -- bash -c \"./build/sim-rv ./Resource/test_csr.bin\" 2>&1)",
+      "PowerShell(wsl.exe --cd /mnt/d/VisualStudioprogramme/Simple-RV/Simple-RV-Plus -- bash -c \"./build/sim-rv ./Resource/test_exceptions.bin\" 2>&1)",
+      "PowerShell(wsl.exe --cd /mnt/d/VisualStudioprogramme/Simple-RV/Simple-RV-Plus/build -- cmake --build . 2>&1)",
+      "PowerShell(wsl.exe --cd /mnt/d/VisualStudioprogramme/Simple-RV/Simple-RV-Plus -- bash -c \"./build/sim-rv ./Resource/int_test.bin\" 2>&1)",
+      "PowerShell(wsl.exe --cd /mnt/d/VisualStudioprogramme/Simple-RV/Simple-RV-Plus -- bash -c \"./build/sim-rv ./Resource/isa_complete_test.bin 2>&1 | head -12\" 2>&1)",
+      "PowerShell(wsl.exe --cd /mnt/d/VisualStudioprogramme/Simple-RV/Simple-RV-Plus -- timeout 5 bash -c \"./build/sim-rv ./Resource/isa_complete_test.bin\" 2>&1 | Select-Object -First 15)",
+      "PowerShell(wsl.exe --cd /mnt/d/VisualStudioprogramme/Simple-RV/Simple-RV-Plus -- timeout 5 bash -c \"./build/sim-rv ./Resource/echo.bin\" 2>&1 | Select-Object -Last 5)",
+      "PowerShell(wsl.exe --cd /mnt/d/VisualStudioprogramme/Simple-RV/Simple-RV-Plus/Resource/CProgram -- bash compile_c.sh 2>&1)"
+    ]
+  }
+}

@@ -1,0 +1,3 @@
+/mnt/d/VisualStudioprogramme/Simple-RV/Simple-RV-Plus/build/CMakeFiles/sim-rv.dir
+/mnt/d/VisualStudioprogramme/Simple-RV/Simple-RV-Plus/build/CMakeFiles/edit_cache.dir
+/mnt/d/VisualStudioprogramme/Simple-RV/Simple-RV-Plus/build/CMakeFiles/rebuild_cache.dir
