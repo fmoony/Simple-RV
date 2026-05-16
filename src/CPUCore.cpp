@@ -11,6 +11,7 @@ void CPUCore::init(const std::string& program_file)
     pc = config.pc_init;
     cycle_count = 0;
     instr_count = 0;
+    stats.reset();
     running = true;
 
     // 初始化栈指针 (x2)，指向 64KB 内存顶部附近
@@ -196,6 +197,7 @@ void CPUCore::execute()
     // --- 控制冒险：分支/跳转 ---
     if (pipe_regs.ex_mem.slots[0].valid && pipe_regs.ex_mem.slots[0].d.is_branch)
     {
+        stats.branch_flushes++;
         Addr target_pc = pipe_regs.ex_mem.slots[0].jump_target;
         pc = target_pc;
 
@@ -275,7 +277,16 @@ void CPUCore::execute()
 // =========================================================================
 void CPUCore::decodeAndIssue()
 {
-    issue_unit.decodeAndIssue(pipe_regs.if_id, pipe_regs.id_ex, reg_file, pipe_regs);
+    issue_unit.decodeAndIssue(pipe_regs.if_id, pipe_regs.id_ex, reg_file, pipe_regs, stats);
+
+    // 统计发射情况
+    if (pipe_regs.id_ex.slots[0].valid && pipe_regs.id_ex.slots[1].valid) {
+        stats.dual_issues++;
+    } else if (pipe_regs.id_ex.slots[0].valid) {
+        stats.single_issues++;
+    } else {
+        stats.stall_cycles++;
+    }
 }
 
 // =========================================================================
@@ -381,6 +392,7 @@ void CPUCore::checkAndHandleInterrupts()
 
     // 定时器中断：MIE.MTIE && MIP.MTIP
     if ((mie_val & MIE_MTIE) && (mip_val & MIP_MTIP)) {
+        stats.interrupt_flushes++;
         std::cout << "[Interrupt] Timer interrupt triggered at PC=0x"
                   << std::hex << pc << std::dec << std::endl;
 
@@ -399,6 +411,7 @@ void CPUCore::checkAndHandleInterrupts()
 
     // 软件中断：MIE.MSIE && MIP.MSIP
     if ((mie_val & MIE_MSIE) && (mip_val & MIP_MSIP)) {
+        stats.interrupt_flushes++;
         std::cout << "[Interrupt] Software interrupt triggered at PC=0x"
                   << std::hex << pc << std::dec << std::endl;
 
@@ -411,6 +424,7 @@ void CPUCore::checkAndHandleInterrupts()
 
     // 外部中断：MIE.MEIE && MIP.MEIP
     if ((mie_val & MIE_MEIE) && (mip_val & MIP_MEIP)) {
+        stats.interrupt_flushes++;
         std::cout << "[Interrupt] External interrupt triggered at PC=0x"
                   << std::hex << pc << std::dec << std::endl;
 
@@ -449,6 +463,26 @@ void CPUCore::dumpState() const
     {
         double ipc = static_cast<double>(instr_count) / cycle_count;
         std::cout << " Final IPC            : " << std::fixed << std::setprecision(3) << ipc << std::endl;
+    }
+
+    // 流水线详细统计
+    if (cycle_count > 0) {
+        std::cout << "\n--- Pipeline Statistics ---" << std::endl;
+        std::cout << " Dual-Issue Cycles    : " << stats.dual_issues
+                  << " (" << std::fixed << std::setprecision(1)
+                  << (100.0 * stats.dual_issues / cycle_count) << "%)" << std::endl;
+        std::cout << " Single-Issue Cycles  : " << stats.single_issues
+                  << " (" << (100.0 * stats.single_issues / cycle_count) << "%)" << std::endl;
+        std::cout << " Stall Cycles         : " << stats.stall_cycles
+                  << " (" << (100.0 * stats.stall_cycles / cycle_count) << "%)" << std::endl;
+        if (stats.branch_flushes > 0)
+            std::cout << " Branch Flushes       : " << stats.branch_flushes << std::endl;
+        if (stats.load_use_stalls > 0)
+            std::cout << " Load-Use Stalls      : " << stats.load_use_stalls << std::endl;
+        if (stats.interrupt_flushes > 0)
+            std::cout << " Interrupt Flushes    : " << stats.interrupt_flushes << std::endl;
+        if (stats.memory_port_conflicts > 0)
+            std::cout << " Memory Port Conflicts: " << stats.memory_port_conflicts << std::endl;
     }
 
     reg_file.dump_registers();

@@ -21,6 +21,7 @@ private:
     uint64_t cycle_count = 0;
     uint64_t instr_count = 0;
     bool     running = true;
+    PipelineStats stats;
 
     // 中断与异常处理
     void checkAndHandleInterrupts();

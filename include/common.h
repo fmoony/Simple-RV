@@ -167,3 +167,19 @@ struct MEM_WB_Buffer
 
 // --- MISA ---
 #define MISA_RV32I  0x40000104  // RV32I 基础 ISA
+
+// --- 流水线性能统计 ---
+struct PipelineStats
+{
+    uint64_t dual_issues = 0;          // 双发射周期数
+    uint64_t single_issues = 0;        // 单发射周期数
+    uint64_t stall_cycles = 0;         // 停顿周期数（0条指令发射）
+    uint64_t branches_predicted = 0;   // 预测的分支总数
+    uint64_t branches_mispredicted = 0;// 分支误判次数
+    uint64_t branch_flushes = 0;       // 分支导致的流水线冲刷
+    uint64_t load_use_stalls = 0;      // Load-Use 冒险停顿
+    uint64_t interrupt_flushes = 0;    // 中断导致的流水线冲刷
+    uint64_t memory_port_conflicts = 0;// 双访存结构冒险冲突
+
+    void reset() { *this = PipelineStats(); }
+};

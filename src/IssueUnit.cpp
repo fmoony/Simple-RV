@@ -1,10 +1,12 @@
 #include "../include/IssueUnit.h"
 #include <iostream>
 
-bool IssueUnit::canIssueTogether(const DecodedData& i0, const DecodedData& i1) const
+bool IssueUnit::canIssueTogether(const DecodedData& i0, const DecodedData& i1,
+                                  PipelineStats& stats) const
 {
     // 1. 结构冒险：单端口内存，不能同时发射两条访存指令
     if (i0.is_memory && i1.is_memory) {
+        stats.memory_port_conflicts++;
         return false;
     }
 
@@ -32,7 +34,8 @@ bool IssueUnit::canIssueTogether(const DecodedData& i0, const DecodedData& i1) c
 }
 
 void IssueUnit::decodeAndIssue(IF_ID_Buffer& if_id, ID_EX_Buffer& id_ex,
-    const RegisterFile& reg_file, PipelineRegisters& pipe_regs)
+    const RegisterFile& reg_file, PipelineRegisters& pipe_regs,
+    PipelineStats& stats)
 {
     if (!if_id.slots[0].valid) return;
 
@@ -61,6 +64,7 @@ void IssueUnit::decodeAndIssue(IF_ID_Buffer& if_id, ID_EX_Buffer& id_ex,
     }
 
     if (cross_cycle_stall) {
+        stats.load_use_stalls++;
         // 插入气泡：无效化 ID_EX，保持 IF_ID 不变以重试
         id_ex.slots[0].valid = false;
         id_ex.slots[1].valid = false;
@@ -71,7 +75,7 @@ void IssueUnit::decodeAndIssue(IF_ID_Buffer& if_id, ID_EX_Buffer& id_ex,
 
     bool dualIssue = false;
     if (if_id.slots[1].valid) {
-        dualIssue = canIssueTogether(if_id.slots[0].d, if_id.slots[1].d);
+        dualIssue = canIssueTogether(if_id.slots[0].d, if_id.slots[1].d, stats);
     }
 
     // 3. 送入 ID_EX
