@@ -126,7 +126,8 @@ void CPUCore::memoryAccess()
 
             // MMU：虚拟地址转物理地址
             Word satp_val = reg_file.read_csr(CSR_SATP);
-            TranslationResult trans = memory.translate(addr, false, false, satp_val);
+            TranslationResult trans = memory.translate(addr, false, false, satp_val,
+                                                       reg_file.get_privilege());
             if (trans.fault) {
                 std::cout << "[Trap] Load page fault at VA=0x" << std::hex << addr << std::dec << std::endl;
                 Addr fault_pc = pipe_regs.ex_mem.pc + (i * 4);
@@ -165,7 +166,8 @@ void CPUCore::memoryAccess()
 
             // MMU：虚拟地址转物理地址
             Word satp_val = reg_file.read_csr(CSR_SATP);
-            TranslationResult trans = memory.translate(addr, true, false, satp_val);
+            TranslationResult trans = memory.translate(addr, true, false, satp_val,
+                                                   reg_file.get_privilege());
             if (trans.fault) {
                 std::cout << "[Trap] Store page fault at VA=0x" << std::hex << addr << std::dec << std::endl;
                 Addr fault_pc = pipe_regs.ex_mem.pc + (i * 4);
@@ -344,7 +346,8 @@ void CPUCore::fetch()
     // MMU 地址转换辅助函数（用于取指）
     auto fetch_instr = [&](Addr vaddr) -> Word {
         Word satp_val = reg_file.read_csr(CSR_SATP);
-        TranslationResult trans = memory.translate(vaddr, false, true, satp_val);
+        TranslationResult trans = memory.translate(vaddr, false, true, satp_val,
+                                                   reg_file.get_privilege());
         if (trans.fault) {
             std::cout << "[Trap] Instruction page fault at PC=0x" << std::hex << vaddr << std::dec << std::endl;
             handleTrap(vaddr, trans.cause, vaddr);
@@ -383,7 +386,8 @@ void CPUCore::fetch()
         {
             // 虚拟 PC 转物理地址，用于双指令取指
             Word satp_val = reg_file.read_csr(CSR_SATP);
-            TranslationResult trans = memory.translate(pc, false, true, satp_val);
+            TranslationResult trans = memory.translate(pc, false, true, satp_val,
+                                                   reg_file.get_privilege());
             if (trans.fault) {
                 std::cout << "[Trap] Instruction page fault at PC=0x" << std::hex << pc << std::dec << std::endl;
                 handleTrap(pc, trans.cause, pc);

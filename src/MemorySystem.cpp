@@ -232,7 +232,8 @@ bool MemorySystem::tlb_lookup(Word vpn, TranslationResult& result, bool is_write
     return false;  // TLB 未命中
 }
 
-TranslationResult MemorySystem::translate(Addr vaddr, bool is_write, bool is_fetch, Word satp) const
+TranslationResult MemorySystem::translate(Addr vaddr, bool is_write, bool is_fetch,
+                                          Word satp, Byte privilege) const
 {
     TranslationResult result;
     result.paddr = vaddr;  // 默认：直接映射
@@ -276,6 +277,7 @@ TranslationResult MemorySystem::translate(Addr vaddr, bool is_write, bool is_fet
     bool pte1_r = pte1_raw & 0x02;
     bool pte1_w = pte1_raw & 0x04;
     bool pte1_x = pte1_raw & 0x08;
+    bool pte1_u = pte1_raw & 0x10;
     Word pte1_ppn = (pte1_raw >> 10) & 0x003FFFFF;
 
     if (!pte1_v) {
@@ -308,6 +310,13 @@ TranslationResult MemorySystem::translate(Addr vaddr, bool is_write, bool is_fet
             result.cause = MCAUSE_LOAD_PAGE_FAULT;
             return result;
         }
+        // U 位检查：U 模式仅能访问 U=1 的页面
+        if (privilege == PRV_U && !pte1_u) {
+            result.fault = true;
+            result.cause = is_fetch ? MCAUSE_INST_PAGE_FAULT :
+                           (is_write ? MCAUSE_STORE_PAGE_FAULT : MCAUSE_LOAD_PAGE_FAULT);
+            return result;
+        }
 
         // 插入 TLB
         const_cast<MemorySystem*>(this)->tlb_insert(vpn_full, pte1_ppn, flags);
@@ -335,6 +344,7 @@ TranslationResult MemorySystem::translate(Addr vaddr, bool is_write, bool is_fet
     bool pte0_r = pte0_raw & 0x02;
     bool pte0_w = pte0_raw & 0x04;
     bool pte0_x = pte0_raw & 0x08;
+    bool pte0_u = pte0_raw & 0x10;
     Word pte0_ppn = (pte0_raw >> 10) & 0x003FFFFF;
 
     if (!pte0_v) {
@@ -358,6 +368,13 @@ TranslationResult MemorySystem::translate(Addr vaddr, bool is_write, bool is_fet
     if (!is_write && !is_fetch && !pte0_r) {
         result.fault = true;
         result.cause = MCAUSE_LOAD_PAGE_FAULT;
+        return result;
+    }
+    // U 位检查：U 模式仅能访问 U=1 的页面
+    if (privilege == PRV_U && !pte0_u) {
+        result.fault = true;
+        result.cause = is_fetch ? MCAUSE_INST_PAGE_FAULT :
+                       (is_write ? MCAUSE_STORE_PAGE_FAULT : MCAUSE_LOAD_PAGE_FAULT);
         return result;
     }
 

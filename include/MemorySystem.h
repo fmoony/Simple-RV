@@ -46,6 +46,8 @@ public:
 
     // MMU：虚拟地址转物理地址
     // satp：当前 satp CSR 寄存器的值
-    TranslationResult translate(Addr vaddr, bool is_write, bool is_fetch, Word satp) const;
+    // privilege：当前特权级（用于 U 位检查）
+    TranslationResult translate(Addr vaddr, bool is_write, bool is_fetch,
+                                Word satp, Byte privilege) const;
     void tlb_flush();
 };
