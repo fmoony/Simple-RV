@@ -116,11 +116,7 @@ void CPUCore::memoryAccess()
             if ((n == 4 && (addr & 0x3)) || (n == 2 && (addr & 0x1))) {
                 std::cout << "[Trap] Load address misaligned: 0x" << std::hex << addr << std::dec << std::endl;
                 Addr fault_pc = pipe_regs.ex_mem.pc + (i * 4);
-                reg_file.write_csr(CSR_MEPC, fault_pc);
-                reg_file.write_csr(CSR_MCAUSE, MCAUSE_LOAD_MISALIGNED);
-                reg_file.write_csr(CSR_MTVAL, addr);
-                pc = reg_file.read_csr(CSR_MTVEC);
-                pipe_regs.flush();
+                handleTrap(fault_pc, MCAUSE_LOAD_MISALIGNED, addr);
                 return;
             }
 
@@ -156,11 +152,7 @@ void CPUCore::memoryAccess()
             if ((n == 4 && (addr & 0x3)) || (n == 2 && (addr & 0x1))) {
                 std::cout << "[Trap] Store address misaligned: 0x" << std::hex << addr << std::dec << std::endl;
                 Addr fault_pc = pipe_regs.ex_mem.pc + (i * 4);
-                reg_file.write_csr(CSR_MEPC, fault_pc);
-                reg_file.write_csr(CSR_MCAUSE, MCAUSE_STORE_MISALIGNED);
-                reg_file.write_csr(CSR_MTVAL, addr);
-                pc = reg_file.read_csr(CSR_MTVEC);
-                pipe_regs.flush();
+                handleTrap(fault_pc, MCAUSE_STORE_MISALIGNED, addr);
                 return;
             }
 
