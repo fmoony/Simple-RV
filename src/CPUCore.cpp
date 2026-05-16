@@ -194,18 +194,36 @@ void CPUCore::execute()
         }
     }
 
-    // --- 控制冒险：分支/跳转 ---
-    if (pipe_regs.ex_mem.slots[0].valid && pipe_regs.ex_mem.slots[0].d.is_branch)
+    // --- 控制冒险：分支/跳转（含 BTFNT 预测验证） ---
+    auto& br_slot = pipe_regs.ex_mem.slots[0];
+    if (br_slot.valid && br_slot.d.is_branch)
     {
+        // 分支实际跳转
         stats.branch_flushes++;
-        Addr target_pc = pipe_regs.ex_mem.slots[0].jump_target;
-        pc = target_pc;
 
-        // 冲刷前端阶段
+        if (!br_slot.d.predicted_taken) {
+            // 误判（under-prediction）：预测不跳但实际跳了，修正 PC 并冲刷
+            stats.branches_mispredicted++;
+            pc = br_slot.jump_target;
+            pipe_regs.if_id = IF_ID_Buffer();
+            pipe_regs.id_ex = ID_EX_Buffer();
+        }
+        // 正确预测跳转：PC 已在 decodeAndIssue 中设置，IF_ID 已含正确路径指令
+        // 仅需无效化槽位 1（由单发射保证已无效）
+
+        pipe_regs.ex_mem.slots[1] = PipelineSlot();
+        pipe_regs.ex_mem.slots[1].valid = false;
+        pipe_regs.ex_mem.memRead[1] = false;
+        pipe_regs.ex_mem.memWrite[1] = false;
+    }
+    else if (br_slot.valid && !br_slot.d.is_branch && br_slot.d.predicted_taken)
+    {
+        // 误判（over-prediction）：预测跳但实际不跳，回退 PC 并冲刷
+        stats.branches_mispredicted++;
+        pc = pipe_regs.ex_mem.pc + 4;
+
         pipe_regs.if_id = IF_ID_Buffer();
         pipe_regs.id_ex = ID_EX_Buffer();
-
-        // 无效化槽位 1（分支命中后的气泡）
         pipe_regs.ex_mem.slots[1] = PipelineSlot();
         pipe_regs.ex_mem.slots[1].valid = false;
         pipe_regs.ex_mem.memRead[1] = false;
@@ -278,6 +296,14 @@ void CPUCore::execute()
 void CPUCore::decodeAndIssue()
 {
     issue_unit.decodeAndIssue(pipe_regs.if_id, pipe_regs.id_ex, reg_file, pipe_regs, stats);
+
+    // 预测跳转：重定向 PC 到预测目标
+    if (pipe_regs.id_ex.slots[0].valid &&
+        pipe_regs.id_ex.slots[0].d.predicted_taken &&
+        pipe_regs.id_ex.slots[0].d.is_branch)
+    {
+        pc = pipe_regs.id_ex.slots[0].jump_target;
+    }
 
     // 统计发射情况
     if (pipe_regs.id_ex.slots[0].valid && pipe_regs.id_ex.slots[1].valid) {

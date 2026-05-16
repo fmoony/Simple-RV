@@ -50,6 +50,8 @@ struct DecodedData
     bool is_csr = false;        // CSR 指令 (op=0x73, funct3!=0)
     bool is_illegal = false;    // 非法指令
     HalfWord csr_addr = 0;      // 12 位 CSR 地址 (instr[31:20])
+
+    bool predicted_taken = false; // BTFNT 分支预测结果
 };
 
 // --- 流水线槽位 ---

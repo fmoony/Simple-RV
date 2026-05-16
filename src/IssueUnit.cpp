@@ -40,8 +40,8 @@ void IssueUnit::decodeAndIssue(IF_ID_Buffer& if_id, ID_EX_Buffer& id_ex,
     if (!if_id.slots[0].valid) return;
 
     // 1. 解码两个槽位
-    decodeInstruction(if_id.slots[0]);
-    decodeInstruction(if_id.slots[1]);
+    decodeInstruction(if_id.slots[0], if_id.pc);
+    decodeInstruction(if_id.slots[1], if_id.pc + 4);
 
     // 2. 跨周期 Load-Use 停顿检测
     bool cross_cycle_stall = false;
@@ -70,6 +70,24 @@ void IssueUnit::decodeAndIssue(IF_ID_Buffer& if_id, ID_EX_Buffer& id_ex,
         id_ex.slots[1].valid = false;
         id_ex.memRead[0] = false; id_ex.memWrite[0] = false;
         id_ex.memRead[1] = false; id_ex.memWrite[1] = false;
+        return;
+    }
+
+    // 预测跳转：预测为跳转的分支仅发射槽 0，丢弃槽 1
+    if (if_id.slots[0].d.is_branch && if_id.slots[0].d.predicted_taken) {
+        stats.branches_predicted++;
+        // 计算跳转目标（与 EX 阶段公式一致：pc + imm）
+        if_id.slots[0].jump_target = if_id.pc + (Word)if_id.slots[0].d.imm;
+
+        id_ex.slots[0] = if_id.slots[0];
+        id_ex.slots[1].valid = false;
+        id_ex.pc = if_id.pc;
+        id_ex.memRead[0] = false; id_ex.memWrite[0] = false;
+        id_ex.memRead[1] = false; id_ex.memWrite[1] = false;
+
+        // 丢弃两个 IF_ID 槽位（槽 1 来自错误路径，直接丢弃）
+        if_id.slots[0].valid = false;
+        if_id.slots[1].valid = false;
         return;
     }
 
@@ -106,7 +124,7 @@ void IssueUnit::decodeAndIssue(IF_ID_Buffer& if_id, ID_EX_Buffer& id_ex,
     }
 }
 
-void IssueUnit::decodeInstruction(PipelineSlot& slot)
+void IssueUnit::decodeInstruction(PipelineSlot& slot, Addr slot_pc)
 {
     Word instr = slot.instr;
     DecodedData& d = slot.d;
@@ -131,6 +149,7 @@ void IssueUnit::decodeInstruction(PipelineSlot& slot)
     d.is_illegal = false;
     d.csr_addr = 0;
     d.imm = 0;
+    d.predicted_taken = false;
 
     switch (d.op) {
     case 0x33: // R 型 (ADD, SUB, AND, OR, ...)
@@ -235,6 +254,17 @@ void IssueUnit::decodeInstruction(PipelineSlot& slot)
             d.is_illegal = true;
         }
         break;
+    }
+
+    // BTFNT 分支预测
+    if (d.is_branch) {
+        if (d.op == 0x6F) {
+            d.predicted_taken = true;               // JAL 无条件跳转
+        } else if (d.op == 0x63) {
+            d.predicted_taken = (d.imm < 0);        // B 型：向后跳转预测跳转
+        } else {
+            d.predicted_taken = false;              // JALR 保守不预测
+        }
     }
 
     slot.rd = d.rd;

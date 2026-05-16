@@ -16,6 +16,6 @@ public:
         PipelineStats& stats);
 
 private:
-    // 解析 RISC-V 32I 指令信息
-    void decodeInstruction(PipelineSlot& slot);
+    // 解析 RISC-V 32I 指令信息，slot_pc 用于分支预测
+    void decodeInstruction(PipelineSlot& slot, Addr slot_pc);
 };
